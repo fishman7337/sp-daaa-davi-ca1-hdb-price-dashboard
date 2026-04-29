@@ -1,0 +1,16 @@
+[project]
+name = "singapore-hdb-resale-price-visual-analytics"
+version = "0.1.0"
+description = "Singapore Polytechnic ST1502 CA1 data visualisation project on Singapore HDB resale prices."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+
+[tool.bandit]
+exclude_dirs = [".venv", "notebooks"]
+skips = []

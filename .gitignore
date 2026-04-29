@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local configuration
+.env
+.env.*
+!.env.example
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS and editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Tableau temporary files
+*.twb~
+*.twbx~
+
+# Large-data note:
+# The coursework datasets are intentionally kept in this repository structure.
+# If this becomes a public Git repository, consider Git LFS for data/, notebooks/, and reports/.
+
