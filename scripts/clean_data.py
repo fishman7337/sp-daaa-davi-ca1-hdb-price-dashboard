@@ -8,6 +8,7 @@ Examples:
     python scripts/clean_data.py
     python scripts/clean_data.py --dataset hdb
     python scripts/clean_data.py --output-dir data/processed_candidate
+
 """
 
 from __future__ import annotations
@@ -17,7 +18,6 @@ import re
 from pathlib import Path
 
 import pandas as pd
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -146,6 +146,35 @@ STREET_TOKEN_FIXES = {
     "CTRL": "CENTRAL",
     "NTH": "NORTH",
     "STH": "SOUTH",
+    "LOR": "LORONG",
+    "GDNS": "GARDENS",
+    "UPP": "UPPER",
+    "C'WEALTH": "COMMONWEALTH",
+    "KG": "KAMPONG",
+    "MKT": "MARKET",
+    "TP": "TOA PAYOH",
+}
+
+STREET_CANONICAL_FIXES = {
+    "Tanjong Pagar Plaza": "Tg Pagar Plaza",
+    "Kim Tian Road Spore": "Kim Tian Road",
+    "Sengkang East Way Link": "Sengkang East Way",
+}
+
+MRT_STATION_FIXES = {
+    "Macpherson": "MacPherson",
+    "Harbourfront": "HarbourFront",
+    "One-North": "one-north",
+}
+
+LOCATION_FLAT_MODEL_FIXES = {
+    "DBSS": "Dbss",
+    "Adjoined flat": "Adjoined Flat",
+    "2-room": "2-Room",
+}
+
+LOCATION_STREET_FIXES = {
+    "Tg Pagar Plaza": "Tanjong Pagar Plaza",
 }
 
 
@@ -163,6 +192,7 @@ def title_clean(value: object) -> str | None:
 
 
 def standardise_town(series: pd.Series) -> pd.Series:
+    """Return normalized uppercase HDB town names for a dataframe column."""
     cleaned = (
         series.astype(str)
         .str.strip()
@@ -175,6 +205,7 @@ def standardise_town(series: pd.Series) -> pd.Series:
 
 
 def standardise_flat_type(value: object) -> str | None:
+    """Normalize a raw flat-type value to the canonical display label."""
     if pd.isna(value):
         return None
 
@@ -186,7 +217,6 @@ def standardise_flat_type(value: object) -> str | None:
         "1 ROOM": "1 Room",
         "2 ROOMS": "2 Room",
         "2 ROOM": "2 Room",
-        "3 ROOMS": "3 Room",
         "3 ROOMS": "3 Room",
         "3 ROOMATES": "3 Room",
         "3 RM": "3 Room",
@@ -212,6 +242,7 @@ def standardise_flat_type(value: object) -> str | None:
 
 
 def clean_block(value: object) -> str | None:
+    """Normalize a block identifier while preserving valid alphanumeric suffixes."""
     if pd.isna(value):
         return None
     text = str(value).upper().strip()
@@ -223,6 +254,7 @@ def clean_block(value: object) -> str | None:
 
 
 def clean_street(value: object) -> str | None:
+    """Normalize street names and expand known abbreviations."""
     if pd.isna(value):
         return None
 
@@ -242,10 +274,24 @@ def clean_street(value: object) -> str | None:
         if not deduped or deduped[-1] != token:
             deduped.append(token)
 
-    return " ".join(token if token.isdigit() else token.title() for token in deduped)
+    cleaned = " ".join(token if token.isdigit() else token.title() for token in deduped)
+    return STREET_CANONICAL_FIXES.get(cleaned, cleaned)
+
+
+def standardise_mrt_station(value: object) -> str | None:
+    """Normalize MRT station capitalization to the committed dataset convention."""
+    cleaned = title_clean(value)
+    return MRT_STATION_FIXES.get(cleaned, cleaned)
+
+
+def standardise_location_street(value: object) -> str | None:
+    """Normalize a street name to the location-enriched dataset convention."""
+    cleaned = clean_street(value)
+    return LOCATION_STREET_FIXES.get(cleaned, cleaned)
 
 
 def standardise_storey_range(value: object) -> str | None:
+    """Normalize a storey-range value to the canonical range label."""
     if pd.isna(value):
         return None
 
@@ -263,6 +309,7 @@ def standardise_storey_range(value: object) -> str | None:
 
 
 def standardise_flat_model(value: object) -> str | None:
+    """Normalize a raw flat-model value to the canonical display label."""
     if pd.isna(value):
         return None
 
@@ -292,7 +339,14 @@ def standardise_flat_model(value: object) -> str | None:
     return text.title()
 
 
+def standardise_location_flat_model(value: object) -> str | None:
+    """Normalize a flat model to the location-enriched dataset convention."""
+    cleaned = standardise_flat_model(value)
+    return LOCATION_FLAT_MODEL_FIXES.get(cleaned, cleaned)
+
+
 def parse_remaining_lease(value: object) -> tuple[int, int] | None:
+    """Parse remaining lease text into non-negative years and months."""
     if pd.isna(value):
         return None
 
@@ -321,6 +375,7 @@ def parse_remaining_lease(value: object) -> tuple[int, int] | None:
 
 
 def format_remaining_lease(value: tuple[int, int] | None) -> str | None:
+    """Format parsed lease years and months for the cleaned CSV."""
     if value is None:
         return None
     years, months = value
@@ -328,6 +383,7 @@ def format_remaining_lease(value: tuple[int, int] | None) -> str | None:
 
 
 def clean_resale_price(value: object) -> float | None:
+    """Parse a positive resale price or return ``None`` for invalid input."""
     if pd.isna(value):
         return None
     text = str(value).strip()
@@ -356,9 +412,9 @@ def clean_hdb_resale(raw_path: Path = HDB_RAW_PATH) -> pd.DataFrame:
     df["storey_range"] = df["storey_range"].map(standardise_storey_range)
     df["floor_area_sqm"] = pd.to_numeric(df["floor_area_sqm"], errors="coerce")
     df["flat_model"] = df["flat_model"].map(standardise_flat_model)
-    df["lease_commence_date"] = pd.to_numeric(
-        df["lease_commence_date"], errors="coerce"
-    ).astype("Int64")
+    df["lease_commence_date"] = pd.to_numeric(df["lease_commence_date"], errors="coerce").astype(
+        "Int64"
+    )
 
     parsed_lease = df["remaining_lease"].map(parse_remaining_lease)
     df["remaining_lease"] = parsed_lease.map(format_remaining_lease)
@@ -382,17 +438,17 @@ def clean_location_enriched(raw_path: Path = LOCATION_RAW_PATH) -> pd.DataFrame:
     df["month"] = pd.to_datetime(df["month"], errors="coerce").dt.strftime("%Y-%m-%d")
     df["town"] = standardise_town(df["town"])
     df["blk_no"] = df["blk_no"].map(clean_block)
-    df["road_name"] = df["road_name"].map(clean_street)
+    df["road_name"] = df["road_name"].map(standardise_location_street)
     df["building"] = df["building"].map(title_clean)
     df["storey_range"] = df["storey_range"].map(standardise_storey_range)
     df["flat_type"] = df["flat_type"].map(standardise_flat_type)
-    df["flat_model"] = df["flat_model"].map(standardise_flat_model)
+    df["flat_model"] = df["flat_model"].map(standardise_location_flat_model)
     df["lease_commence_date"] = pd.to_datetime(
         df["lease_commence_date"], errors="coerce"
     ).dt.strftime("%Y-%m-%d")
     df["planning_area_ura"] = df["planning_area_ura"].map(title_clean)
     df["region_ura"] = df["region_ura"].map(title_clean)
-    df["closest_mrt_station"] = df["closest_mrt_station"].map(title_clean)
+    df["closest_mrt_station"] = df["closest_mrt_station"].map(standardise_mrt_station)
     df["transport_type"] = df["transport_type"].astype(str).str.strip().str.upper()
     df["line_color"] = df["line_color"].map(title_clean)
     df["closest_pri_school"] = df["closest_pri_school"].map(title_clean)
@@ -420,11 +476,13 @@ def clean_location_enriched(raw_path: Path = LOCATION_RAW_PATH) -> pd.DataFrame:
 
 
 def write_csv(df: pd.DataFrame, path: Path) -> None:
+    """Write a cleaned dataframe as an Excel-compatible UTF-8 CSV."""
     path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(path, index=False, encoding="utf-8-sig")
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line paths and overwrite options for data cleaning."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--dataset",
@@ -442,6 +500,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    """Clean both source datasets and return a process exit status."""
     args = parse_args()
     output_dir = args.output_dir
 

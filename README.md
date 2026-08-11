@@ -2,6 +2,15 @@
 
 This repository contains the cleaned datasets, Tableau workbook, cleaning notebooks, report, and presentation for a Singapore Polytechnic data visualisation coursework project on Singapore HDB resale flat prices.
 
+## Evidence and interpretation
+
+| Evidence-backed measure | Current repository evidence |
+| --- | --- |
+| Canonical analysis tables | **202,461 cleaned resale records** plus a **216,695-row** location-enriched table. |
+| Precisely bounded growth | In **2024**, mean and median resale prices increased about **7.13%** and **7.27%** year over year; 2017–2025-partial CAGR is **4.69% / 5.26%**. |
+
+The qualitative outcome is a documented Tableau-ready market-analysis pipeline with cleaning, anomaly handling, geospatial enrichment, and decision-support views. The 7% figure is specific to 2024 and must not be presented as a general annual growth rate.
+
 ## Academic Context
 
 - Institution: Singapore Polytechnic, School of Computing
