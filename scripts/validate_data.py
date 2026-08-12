@@ -5,17 +5,14 @@ from __future__ import annotations
 import csv
 import re
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 HDB_CLEAN_PATH = PROJECT_ROOT / "data" / "processed" / "hdb_resale_flat_prices_clean.csv"
-LOCATION_CLEAN_PATH = (
-    PROJECT_ROOT / "data" / "processed" / "location_enriched_hdb_resale_clean.csv"
-)
+LOCATION_CLEAN_PATH = PROJECT_ROOT / "data" / "processed" / "location_enriched_hdb_resale_clean.csv"
 
 EXPECTED_FILES = (
     PROJECT_ROOT / "README.md",
@@ -106,6 +103,8 @@ STOREY_RANGE_RE = re.compile(r"^\d{1,2} to \d{1,2}$")
 
 @dataclass(frozen=True)
 class NumericRule:
+    """Numeric column constraint used during row validation."""
+
     column: str
     minimum: float
     maximum: float
@@ -113,6 +112,8 @@ class NumericRule:
 
 @dataclass(frozen=True)
 class DatasetSpec:
+    """Schema, row-count, and row-validator contract for one dataset."""
+
     path: Path
     schema: list[str]
     expected_rows: int
@@ -120,6 +121,7 @@ class DatasetSpec:
 
 
 def as_float(row: dict[str, str], column: str, line_number: int, errors: list[str]) -> float | None:
+    """Parse a numeric cell and append a contextual validation error on failure."""
     value = row.get(column, "")
     try:
         return float(value)
@@ -134,14 +136,14 @@ def validate_numeric_rules(
     rules: tuple[NumericRule, ...],
     errors: list[str],
 ) -> None:
+    """Apply numeric bounds to a CSV row and collect validation errors."""
     for rule in rules:
         value = as_float(row, rule.column, line_number, errors)
         if value is None:
             continue
         if not rule.minimum <= value <= rule.maximum:
             errors.append(
-                f"Line {line_number}: {rule.column}={value} outside "
-                f"{rule.minimum}..{rule.maximum}"
+                f"Line {line_number}: {rule.column}={value} outside {rule.minimum}..{rule.maximum}"
             )
 
 
@@ -151,6 +153,7 @@ def validate_common_fields(
     errors: list[str],
     month_pattern: re.Pattern[str],
 ) -> None:
+    """Validate shared date, town, flat, and location fields in a CSV row."""
     if row["flat_type"] not in VALID_FLAT_TYPES:
         errors.append(f"Line {line_number}: unexpected flat_type {row['flat_type']!r}")
 
@@ -164,6 +167,7 @@ def validate_common_fields(
 
 
 def validate_hdb_row(row: dict[str, str], line_number: int, errors: list[str]) -> None:
+    """Validate one canonical HDB resale transaction row."""
     validate_common_fields(row, line_number, errors, MONTH_RE)
     validate_numeric_rules(
         row,
@@ -181,6 +185,7 @@ def validate_hdb_row(row: dict[str, str], line_number: int, errors: list[str]) -
 
 
 def validate_location_row(row: dict[str, str], line_number: int, errors: list[str]) -> None:
+    """Validate one location-enriched resale transaction row."""
     validate_common_fields(row, line_number, errors, DATE_RE)
     validate_numeric_rules(
         row,
@@ -202,16 +207,20 @@ def validate_location_row(row: dict[str, str], line_number: int, errors: list[st
     )
 
     if row["transport_type"] not in {"MRT", "LRT"}:
-        errors.append(
-            f"Line {line_number}: unexpected transport_type {row['transport_type']!r}"
-        )
+        errors.append(f"Line {line_number}: unexpected transport_type {row['transport_type']!r}")
 
 
 def validate_required_files() -> list[str]:
-    return [f"Missing required file: {path.relative_to(PROJECT_ROOT)}" for path in EXPECTED_FILES if not path.exists()]
+    """Return errors for required project artifacts that are absent."""
+    return [
+        f"Missing required file: {path.relative_to(PROJECT_ROOT)}"
+        for path in EXPECTED_FILES
+        if not path.exists()
+    ]
 
 
 def validate_dataset(spec: DatasetSpec) -> list[str]:
+    """Validate a complete CSV against its declared dataset specification."""
     errors: list[str] = []
     corrected_hdb_records = {
         ("2017-01", "233", "Ang Mo Kio Avenue 3", "295000.0"): "67.0",
@@ -267,9 +276,12 @@ def validate_dataset(spec: DatasetSpec) -> list[str]:
 
 
 def validate_project() -> list[str]:
+    """Validate required artifacts and both committed analytical datasets."""
     errors = validate_required_files()
     specs = (
-        DatasetSpec(HDB_CLEAN_PATH, HDB_SCHEMA, EXPECTED_ROW_COUNTS[HDB_CLEAN_PATH], validate_hdb_row),
+        DatasetSpec(
+            HDB_CLEAN_PATH, HDB_SCHEMA, EXPECTED_ROW_COUNTS[HDB_CLEAN_PATH], validate_hdb_row
+        ),
         DatasetSpec(
             LOCATION_CLEAN_PATH,
             LOCATION_SCHEMA,
@@ -284,6 +296,7 @@ def validate_project() -> list[str]:
 
 
 def main() -> int:
+    """Run project validation and return a command-line exit status."""
     errors = validate_project()
     if errors:
         print("Data validation failed:")
